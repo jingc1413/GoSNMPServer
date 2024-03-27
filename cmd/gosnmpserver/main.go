@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/gosnmp/gosnmp"
+	"github.com/jingc1413/GoSNMPServer"
+	"github.com/jingc1413/GoSNMPServer/mibImps"
 	"github.com/sirupsen/logrus"
-	"github.com/slayercat/GoSNMPServer"
-	"github.com/slayercat/GoSNMPServer/mibImps"
 	"github.com/urfave/cli/v2"
 )
 
