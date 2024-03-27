@@ -2,8 +2,8 @@ package dismanEventMib
 
 import (
 	"github.com/gosnmp/gosnmp"
+	"github.com/jingc1413/GoSNMPServer"
 	"github.com/shirou/gopsutil/v3/host"
-	"github.com/slayercat/GoSNMPServer"
 )
 
 func init() {

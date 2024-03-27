@@ -187,7 +187,7 @@ func (t *MasterAgent) ResponseForBuffer(i []byte, addr string) ([]byte, error) {
 			}
 		}
 
-		val, err := t.ResponseForPkt(request)
+		val, err := t.ResponseForPkt(request, addr)
 		if val == nil {
 			request.SecurityParameters = vhandle.SecurityParameters
 			return t.marshalPkt(request, err)
