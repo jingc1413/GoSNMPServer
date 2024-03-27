@@ -120,7 +120,7 @@ func (t *MasterAgent) getUserNameFromRequest(request *gosnmp.SnmpPacket) string 
 	return username
 }
 
-func (t *MasterAgent) ResponseForBuffer(i []byte) ([]byte, error) {
+func (t *MasterAgent) ResponseForBuffer(i []byte, addr string) ([]byte, error) {
 	// Decode
 	vhandle := gosnmp.GoSNMP{}
 	vhandle.Logger = gosnmp.NewLogger(&SnmpLoggerAdapter{t.Logger})
@@ -134,12 +134,12 @@ func (t *MasterAgent) ResponseForBuffer(i []byte) ([]byte, error) {
 			return nil, errors.WithStack(ErrNoPermission)
 		}
 
-		return t.marshalPkt(t.ResponseForPkt(request))
+		return t.marshalPkt(t.ResponseForPkt(request, addr))
 		//
 	case gosnmp.Version3:
 		// check for initial - discover response / non Privacy Items
 		if decodeError == nil && len(request.Variables) == 0 {
-			val, err := t.ResponseForPkt(request)
+			val, err := t.ResponseForPkt(request, addr)
 
 			if val == nil {
 				return t.marshalPkt(request, err)
@@ -263,14 +263,14 @@ func (t *MasterAgent) fillErrorPkt(err error, io *gosnmp.SnmpPacket) error {
 	return nil
 }
 
-func (t *MasterAgent) ResponseForPkt(i *gosnmp.SnmpPacket) (*gosnmp.SnmpPacket, error) {
+func (t *MasterAgent) ResponseForPkt(i *gosnmp.SnmpPacket, addr string) (*gosnmp.SnmpPacket, error) {
 	// Find for which SubAgent
 	community := getPktContextOrCommunity(i)
 	subAgent := t.findForSubAgent(community)
 	if subAgent == nil {
 		return i, errors.WithStack(ErrNoSNMPInstance)
 	}
-	return subAgent.Serve(i)
+	return subAgent.Serve(i, addr)
 }
 
 func (t *MasterAgent) SyncConfig() error {

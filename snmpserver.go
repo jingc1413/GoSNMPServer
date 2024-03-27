@@ -82,7 +82,7 @@ func (server *SNMPServer) ServeNextRequest() (err error) {
 	if err != nil {
 		return err
 	}
-	result, err := server.master.ResponseForBuffer(bytePDU)
+	result, err := server.master.ResponseForBuffer(bytePDU, replyer.RemoteAddr())
 	if err != nil {
 		v := "with"
 		if len(result) == 0 {

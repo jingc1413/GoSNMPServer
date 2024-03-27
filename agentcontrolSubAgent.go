@@ -47,7 +47,7 @@ func (t *SubAgent) SyncConfig() error {
 	return nil
 }
 
-func (t *SubAgent) Serve(i *gosnmp.SnmpPacket) (*gosnmp.SnmpPacket, error) {
+func (t *SubAgent) Serve(i *gosnmp.SnmpPacket, addr string) (*gosnmp.SnmpPacket, error) {
 	switch i.PDUType {
 	case gosnmp.GetRequest:
 		return t.serveGetRequest(i)
@@ -58,7 +58,7 @@ func (t *SubAgent) Serve(i *gosnmp.SnmpPacket) (*gosnmp.SnmpPacket, error) {
 	case gosnmp.SetRequest:
 		return t.serveSetRequest(i)
 	case gosnmp.Trap, gosnmp.SNMPv2Trap, gosnmp.InformRequest:
-		return t.serveTrap(i)
+		return t.serveTrap(i, addr)
 	default:
 		return nil, errors.WithStack(ErrUnsupportedOperation)
 	}
@@ -156,7 +156,7 @@ func (t *SubAgent) getForPDUValueControlResult(item *PDUValueControlItem,
 }
 
 func (t *SubAgent) trapForPDUValueControlResult(item *PDUValueControlItem,
-	i *gosnmp.SnmpPacket, varItem gosnmp.SnmpPDU) (pdu gosnmp.SnmpPDU, errret gosnmp.SNMPError) {
+	i *gosnmp.SnmpPacket, varItem gosnmp.SnmpPDU, addr string) (pdu gosnmp.SnmpPDU, errret gosnmp.SNMPError) {
 	if t.checkPermission(item, i) != PermissionAllowanceAllowed {
 		return t.getPDUNil(item.OID), gosnmp.NoAccess
 	}
@@ -177,7 +177,7 @@ func (t *SubAgent) trapForPDUValueControlResult(item *PDUValueControlItem,
 	if i.PDUType == gosnmp.InformRequest {
 		isInform = true
 	}
-	valtoRet, err := item.OnTrap(isInform, varItem)
+	valtoRet, err := item.OnTrap(isInform, varItem, addr)
 	if err != nil {
 		if t.UserErrorMarkPacket {
 			errret = gosnmp.GenErr
@@ -232,7 +232,7 @@ func (t *SubAgent) serveGetRequest(i *gosnmp.SnmpPacket) (*gosnmp.SnmpPacket, er
 
 }
 
-func (t *SubAgent) serveTrap(i *gosnmp.SnmpPacket) (*gosnmp.SnmpPacket, error) {
+func (t *SubAgent) serveTrap(i *gosnmp.SnmpPacket, addr string) (*gosnmp.SnmpPacket, error) {
 	var ret gosnmp.SnmpPacket = copySnmpPacket(i)
 	t.Logger.Debugf("before copy: %v...After copy:%v",
 		i.SecurityParameters.(*gosnmp.UsmSecurityParameters),
@@ -252,7 +252,7 @@ func (t *SubAgent) serveTrap(i *gosnmp.SnmpPacket) (*gosnmp.SnmpPacket, error) {
 			continue
 		}
 
-		ctl, snmperr := t.trapForPDUValueControlResult(item, i, varItem)
+		ctl, snmperr := t.trapForPDUValueControlResult(item, i, varItem, addr)
 		if snmperr != gosnmp.NoError && ret.Error == gosnmp.NoError {
 			ret.Error = snmperr
 			ret.ErrorIndex = uint8(id)
