@@ -52,6 +52,7 @@ func (udp *UDPListener) NextSnmp() ([]byte, IReplyer, error) {
 		return nil, nil, errors.Wrap(err, "UDP Read Error")
 	}
 	udp.logger.Infof("udp request from %v. size=%v", udpAddr, counts)
+	
 	return msg[:counts], &UDPReplyer{udpAddr, udp.conn}, nil
 }
 
