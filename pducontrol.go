@@ -33,6 +33,8 @@ type FuncPDUControlCheckPermission func(pktVersion gosnmp.SnmpVersion, pduType g
 //			err  --  any error?(will return to client by string)
 type FuncPDUControlTrap func(isInform bool, trapdata gosnmp.SnmpPDU, addr string) (dataret interface{}, err error)
 
+type FuncPDUControlTrapAll func(packet *gosnmp.SnmpPacket, addr string) (dataret interface{}, err error)
+
 // FuncPDUControlGet will be called on get value
 type FuncPDUControlGet func() (value interface{}, err error)
 
@@ -65,6 +67,8 @@ type PDUValueControlItem struct {
 	// OnTrap will be called on TRAP.
 	OnTrap FuncPDUControlTrap
 	//////////// For human document
+
+	OnTrapAll FuncPDUControlTrapAll
 
 	//Document for this PDU Item. ignored by the program.
 	Document string

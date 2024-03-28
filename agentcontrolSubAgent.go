@@ -9,6 +9,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	INTERNAL_ACTION_CONTROL = "0.0.0.0.0.0.0.0.0.0.0"
+)
+
 type SubAgent struct {
 	// ContextName selects from SNMPV3 ContextName or SNMPV1/V2c community for switch from SubAgent...
 	//             set to nil means all requests will gets here(of default)
@@ -155,6 +159,40 @@ func (t *SubAgent) getForPDUValueControlResult(item *PDUValueControlItem,
 	}, gosnmp.NoError
 }
 
+func (t *SubAgent) trapForPDUValueAllResult(item *PDUValueControlItem, packet *gosnmp.SnmpPacket, addr string) (
+	pdu gosnmp.SnmpPDU, errret gosnmp.SNMPError) {
+	if t.checkPermission(item, packet) != PermissionAllowanceAllowed {
+		return t.getPDUNil(item.OID), gosnmp.NoAccess
+	}
+	if item.OnTrapAll == nil {
+		return t.getPDUNil(item.OID), gosnmp.ResourceUnavailable
+	}
+	defer func() {
+		// panic in onset
+		if err := recover(); err != nil {
+			pdu = t.getPDUOctetString(item.OID, fmt.Sprintf("ERROR: %+v", err))
+			if t.UserErrorMarkPacket {
+				errret = gosnmp.GenErr
+			}
+			return
+		}
+	}()
+	valtoRet, err := item.OnTrapAll(packet, addr)
+	if err != nil {
+		if t.UserErrorMarkPacket {
+			errret = gosnmp.GenErr
+		} else {
+			errret = gosnmp.NoError
+		}
+		return t.getPDUOctetString(item.OID, fmt.Sprintf("ERROR: %+v", err)), errret
+	}
+	return gosnmp.SnmpPDU{
+		Name:  item.OID,
+		Type:  item.Type,
+		Value: valtoRet,
+	}, gosnmp.NoError
+}
+
 func (t *SubAgent) trapForPDUValueControlResult(item *PDUValueControlItem,
 	i *gosnmp.SnmpPacket, varItem gosnmp.SnmpPDU, addr string) (pdu gosnmp.SnmpPDU, errret gosnmp.SNMPError) {
 	if t.checkPermission(item, i) != PermissionAllowanceAllowed {
@@ -258,6 +296,18 @@ func (t *SubAgent) serveTrap(i *gosnmp.SnmpPacket, addr string) (*gosnmp.SnmpPac
 			ret.ErrorIndex = uint8(id)
 		}
 		ret.Variables = append(ret.Variables, ctl)
+	}
+	{
+		// all trap message to callback
+		item, _ := t.getForPDUValueControl(INTERNAL_ACTION_CONTROL)
+		if item != nil {
+			ctl, snmperr := t.trapForPDUValueAllResult(item, i, addr)
+			if snmperr != gosnmp.NoError && ret.Error == gosnmp.NoError {
+				ret.Error = snmperr
+				ret.ErrorIndex = uint8(1)
+			}
+			ret.Variables = append(ret.Variables, ctl)
+		}
 	}
 	if i.PDUType == gosnmp.InformRequest {
 		return &ret, nil
