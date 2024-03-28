@@ -31,6 +31,9 @@ type MasterAgent struct {
 type SecurityConfig struct {
 	NoSecurity bool
 
+	// SnmpV3Only is used for mark only snmpv3 is supported
+	SnmpV3Only bool
+
 	// AuthoritativeEngineID is SNMPV3 AuthoritativeEngineID
 	AuthoritativeEngineID SNMPEngineID
 	// AuthoritativeEngineBoots is SNMPV3 AuthoritativeEngineBoots
@@ -130,8 +133,8 @@ func (t *MasterAgent) ResponseForBuffer(i []byte, addr string) ([]byte, error) {
 
 	switch request.Version {
 	case gosnmp.Version1, gosnmp.Version2c:
-		if t.SecurityConfig.NoSecurity == false {
-			return nil, errors.WithStack(ErrNoPermission)
+		if t.SecurityConfig.SnmpV3Only {
+			return nil, errors.WithMessagef(ErrUnsupportedProtoVersion, "Server sets snmpV3 Only")
 		}
 
 		return t.marshalPkt(t.ResponseForPkt(request, addr))
@@ -157,18 +160,27 @@ func (t *MasterAgent) ResponseForBuffer(i []byte, addr string) ([]byte, error) {
 			return nil, err
 		}
 
-		mode := 0
+		if !t.SecurityConfig.NoSecurity{
+			// https://pkg.go.dev/github.com/gosnmp/gosnmp#SnmpV3MsgFlags
+			userAuthMode := gosnmp.NoAuthNoPriv
 
-		if usm.AuthenticationProtocol > gosnmp.NoAuth {
-			mode = 1
-		}
 
-		if usm.PrivacyProtocol > gosnmp.NoPriv {
-			mode = mode | 2
-		}
+			if usm.AuthenticationProtocol > gosnmp.NoAuth {
+					userAuthMode = gosnmp.AuthNoPriv
+			}
 
-		if request.MsgFlags&gosnmp.AuthPriv /*3*/ != gosnmp.SnmpV3MsgFlags(mode) {
-			return nil, errors.WithMessagef(ErrUnsupportedPacketData, "GoSNMP Returns %v", err)
+
+			if usm.PrivacyProtocol > gosnmp.NoPriv {
+					userAuthMode = gosnmp.AuthPriv
+			}
+
+			requestAuthMode := request.MsgFlags&gosnmp.AuthPriv /*3*/ 
+
+			if requestAuthMode != gosnmp.SnmpV3MsgFlags(userAuthMode) {
+				return nil, 
+					errors.WithMessagef(ErrNoPermission, 
+						"user %v required %v, got %v", username, userAuthMode.String(), request.MsgFlags.String())
+			}
 		}
 
 		if decodeError != nil {
@@ -307,8 +319,11 @@ func (t *MasterAgent) findForSubAgent(community string) *SubAgent {
 	if val, ok := t.priv.communityToSubAgent[community]; ok {
 		return val
 	} else {
-		return t.priv.defaultSubAgent
-	}
+		if t.SecurityConfig.NoSecurity {
+			return t.priv.defaultSubAgent
+		}
+		return nil
+	} 
 }
 
 func DefaultAuthoritativeEngineID() SNMPEngineID {
